@@ -1,0 +1,49 @@
+# Insert this text into www.websequencediagrams.com
+
+title VOLTHA Service Definitions
+
+participant Operator as O
+participant Orchestration as X
+participant Subscriber\nManager as B
+participant Service\nManager as S
+participant Mixer as M
+participant ONOS as N
+participant VOLTHA\nCore as V
+participant VOLTHA\nAdapter as A
+participant OLT as T
+participant ONU as U
+participant Profile\nManager as P
+participant Key\ Value\nStore as K
+
+O->+S: define service
+S->-O: <ok>
+
+loop for each service subscribed
+O->+X: associate subscriber to service
+X->+B: associate subscriber to service
+B-->-X: <ok>
+X->+K: store association
+K-->-X: <ok>
+X-->-O: <ok>
+end
+
+opt on each change event
+K-->+O: new subscriber association
+O->+S: query service definition
+S-->-O: <service-def>
+O->+P: query profile for service+subscriber
+P-->-O: <profile>
+O->+M: mix profile + service
+M-->-O: <flows>
+O->+N: provision <flows>
+N->+V: provision <flows>
+V->+A: provision <flows>
+A->+T: provision <flows>
+T->+U: provision <flows>
+U-->-T: <ok>
+T-->-A: <ok>
+A-->-V: <ok>
+V-->-N: <ok>
+N-->-O: <ok>
+deactivate O
+end
