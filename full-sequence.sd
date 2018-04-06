@@ -1,0 +1,288 @@
+# sequencediagram.org
+title VOLTHA - Technology Specific Provisioning
+
+participant "Operator/\nOrchestrator" as o
+participant "\nRG" as rg
+participant "\nONU" as onu
+participant "\nOLT" as olt
+participant "VOLTHA ONU\nAdapter" as onua
+participant "VOLTHA OLT\nAdapter" as olta
+participant "VOLTHA\nCore" as vcore
+participant "VOLTHA\nOF Agent" as ofagent
+participant "VOLTHA\nProfile Manager" as pm
+participant "\nONOS" as onos
+participant "ONOS\nOLT" as oolt
+participant "ONOS\nAAA" as aaa
+participant "ONOS\nDHCP L2 Relay" as l2
+participant "\nRADIUS" as r
+participant "\nDHCP" as dhcp
+
+==Define Profiles==#lightgreen
+o->pm: addProfile(<technology>, <olt-profile>)
+activate o
+activate pm
+note over pm#LightGoldenRodYellow: Defines default values an OLT\n for a given technology, i.e XPON.\n Must be some indication to which\ntable-id(s) this profile is associated.
+pm-->o: <ok>
+deactivate pm
+
+o->pm: addProfile(<service-profile>)
+activate pm
+note over pm#LightGoldenRodYellow: Defines values required to\nconfigure a service,\ni.e. high speed Internet access, to a virtual\nport (ONU) for a given technology, i.e. XPON.\nMust be some indication to which table-id(s)\nthis profile is associated.
+pm-->o: <ok>
+deactivate pm
+deactivate o
+
+
+==Enable OLT==#lightgreen
+o->vcore: preprovision(<olt>)
+activate o
+activate vcore
+vcore-->o: <ok>
+deactivate vcore
+
+o->vcore: enable(<olt>)
+activate vcore
+vcore->olta: init(<olt>)
+activate olta
+olta->olt: zero()
+activate olt
+note over olt#LightGoldenRodYellow:At this point the OLT is configured to\npass no traffic, it is in the "zero-ed"\nstate.
+olt-->olta: <ok>
+deactivate olt
+olta->onua: zero()
+activate onua
+onua->onu: zero()
+activate onu
+onu-->onua: <ok>
+deactivate onu
+onua-->olta: <ok>
+deactivate onua
+olta-->vcore: <ok>
+deactivate olta
+vcore-->o: <ok>
+deactivate vcore
+deactivate o
+
+==OLT Connection to SDN Controller==#lightgreen
+vcore->ofagent: Hello
+activate ofagent
+ofagent->onos: Hello
+activate onos
+onos-->ofagent: Back at ya
+ofagent-->vcore: <ok>
+deactivate ofagent
+onos->aaa: new device
+activate aaa
+alt profile manager integration defined
+aaa->pm: queryForTableId(<olt-attributes>)
+activate pm
+pm-->aaa: <table-id>
+deactivate pm
+else profiel manager integration NOT defined
+aaa->aaa: table-id == None
+end
+aaa->onos: addFlow(EAPOL, <table-id>)
+activate onos
+onos->ofagent: addFlow(EAPOL, <table-id>)
+activate ofagent
+ofagent->vcore: addFlow(EAPOL, <table-id>)
+activate vcore
+vcore->olta: addFlow(EAPOL, <table-id>)
+activate olta
+olta->pm: query(<olt>, <technology>, <table-id>)
+activate pm
+pm-->olta: <olt-profile>
+deactivate pm
+olta->olt: provision() w/<olt-profile>
+activate olt
+note over olt#LightGoldenRodYellow:At this point the OLT has the default\nconfiguration based on the the\ntechnology and profile.
+olt-->olta: <ok>
+deactivate olt
+olta-->vcore: <ok>
+deactivate olta
+loop active ports (ONUs)
+vcore->onua: provision() w/<olt-profile>
+activate onua
+onua->pm: query(<service>, <technology>, <table-id>)
+activate pm
+pm-->onua: <service-profile>
+deactivate pm
+onua->onu: provision() w/<service-profile> and <olt-profile>
+activate onu
+note over onu#LightGoldenRodYellow:At this point the ONU has the default\nconfiguration based on the profile\nfor all active ports
+onu-->onua: <ok>
+deactivate onu
+onua-->vcore: <ok>
+deactivate onua
+end
+vcore-->ofagent: <ok>
+deactivate vcore
+ofagent-->onos: <ok>
+deactivate ofagent
+onos-->aaa: <ok>
+deactivate onos
+aaa-->onos: <ok>
+deactivate aaa
+deactivate onos
+
+==ONU Attached and Provisioned==#lightgreen
+activate onu
+onu->olt: range
+activate olt
+olt-->onu: <ok>
+
+olt-->onua: new ONU
+activate onua
+onua-->olta: new ONU
+activate olta
+olta-->vcore: port up
+activate vcore
+vcore-->ofagent: port up
+activate ofagent
+ofagent-->onos: port up
+activate onos
+onos->aaa: port up
+activate aaa
+alt profile manager integration defined
+aaa->pm: queryForTableId(<port-service-attributes>)
+activate pm
+pm-->aaa: <table-id>
+deactivate pm
+else profiel manager integration NOT defined
+aaa->aaa: table-id == None
+end
+aaa->onos: addFlow(EAPOL, <port>, <table-id>)
+activate onos
+onos->ofagent: addFlow(EAPOL, <port>, <table-id>)
+activate ofagent
+ofagent->vcore: addFlow(EAPOL, <port>, <table-id>)
+activate vcore
+vcore->olta: addFlow(EAPOL, <port>, <table-id>)
+activate olta
+olta->pm: query(<olt>, <technology>, <table-id>)
+activate pm
+pm-->olta: <olt-profile>
+deactivate pm
+opt olt provisioning required
+olta->olt: provision() w/<olt-profile>
+activate olt
+olt-->olta: <ok>
+deactivate olt
+end
+olta-->vcore: <ok>
+deactivate olta
+vcore->onua: addFlow(EAPOL, <port>, <table-id>) w/<olt-profile>
+activate onua
+onua->pm: query(<service>, <technology>, <port>, <table-id>)
+activate pm
+pm-->onua: <service-profile>
+deactivate pm
+opt onu provisioning required
+onua->onu: provision() w/<service-profile> and <olt-profile>
+activate onu
+onu-->onua: <ok>
+deactivate onu
+end
+onua-->vcore: <ok>
+deactivate onua
+vcore-->ofagent: <ok>
+deactivate vcore
+ofagent-->onos: <ok>
+deactivate ofagent
+onos-->aaa: <ok>
+deactivate onos
+aaa-->onos: <ok>
+deactivate aaa
+space 
+deactivate olt
+deactivate onu
+deactivate ofagent
+deactivate vcore
+deactivate olta
+deactivate onua
+deactivate onos
+
+==Authentication==#lightgreen
+activate rg
+rg->onu: EAPOL
+activate onu
+onu->olt: EAPOL
+activate olt
+olt->olta: EAPOL
+activate olta
+olta->vcore: EAPOL
+activate vcore
+vcore->ofagent: EAPOL
+activate ofagent
+ofagent->onos: EAPOL
+activate onos
+onos->aaa: EAPOL
+activate aaa
+aaa->r: RADIUS Authenticate
+activate r
+r->aaa: <accept>
+deactivate r
+aaa-->onos: <accept>
+onos-->ofagent: <accept>
+deactivate onos
+ofagent-->vcore: <accept>
+deactivate ofagent
+vcore-->olta: <accept>
+deactivate vcore
+olta-->olt: <accept>
+deactivate olta
+olt->onu: <accept>
+deactivate olt
+onu->rg: <accept>
+deactivate onu
+
+alt profile manager integration defined
+aaa->pm: queryForTableId(<port-service-attributes>)
+activate pm
+pm-->aaa: <table-id>
+deactivate pm
+else profiel manager integration NOT defined
+aaa->aaa: table-id == None
+end
+aaa->onos: modeFlows(-EAPOL+DHCP, <table-id>, <port>)
+activate onos
+onos->ofagent: modeFlows(-EAPOL+DHCP, <table-id>, <port>)
+activate ofagent
+ofagent->vcore: modeFlows(-EAPOL+DHCP, <table-id>, <port>)
+activate vcore
+vcore->olta: modeFlows(-EAPOL+DHCP, <table-id>, <port>)
+activate olta
+olta->pm: query(<olt>, <technology>, <table-id>)
+activate pm
+pm-->olta: <olt-profile>
+deactivate pm
+opt olt provisioning required
+olta->olt: provision() w/<olt-profile>
+activate olt
+olt-->olta: <ok>
+deactivate olt
+end
+olta-->vcore: <ok>
+deactivate olta
+vcore->onua: modeFlows(-EAPOL+DHCP, <table-id>, <port>) w/<olt-profile>
+activate onua
+onua->pm: query(<service>, <technology>, <port>, <table-id>)
+activate pm
+pm-->onua: <service-profile>
+deactivate pm
+opt onu provisioning required
+onua->onu: provision() w/<service-profile> and <olt-profile>
+activate onu
+onu-->onua: <ok>
+deactivate onu
+end
+onua-->vcore: <ok>
+deactivate onua
+vcore-->ofagent: <ok>
+deactivate vcore
+ofagent-->onos: <ok>
+deactivate ofagent
+onos-->aaa: <ok>
+deactivate onos
+deactivate aaa
+
